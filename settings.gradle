@@ -1,1 +1,1 @@
-include ':app', ':androidAsyncHttp'
+include ':app', ':androidAsyncHttp', ':imageloader'
