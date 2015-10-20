@@ -6,14 +6,23 @@ import com.begentgroup.xmlparser.XMLParser;
 import com.google.gson.Gson;
 import com.loopj.android.http.AsyncHttpClient;
 import com.loopj.android.http.AsyncHttpResponseHandler;
+import com.loopj.android.http.MySSLSocketFactory;
 import com.loopj.android.http.PersistentCookieStore;
 import com.loopj.android.http.RequestParams;
 import com.loopj.android.http.TextHttpResponseHandler;
 
 import org.apache.http.Header;
+import org.apache.http.client.HttpClient;
 import org.apache.http.message.BasicHeader;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 
 /**
  * Created by dongja94 on 2015-10-20.
@@ -31,10 +40,37 @@ public class NetworkManager {
     XMLParser parser;
     Gson gson;
     private NetworkManager() {
-        client = new AsyncHttpClient();
+
+        try {
+            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+            trustStore.load(null, null);
+            MySSLSocketFactory socketFactory = new MySSLSocketFactory(trustStore);
+            socketFactory.setHostnameVerifier(MySSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+            client = new AsyncHttpClient();
+            client.setSSLSocketFactory(socketFactory);
+            client.setCookieStore(new PersistentCookieStore(MyApplication.getContext()));
+        } catch (KeyStoreException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (CertificateException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (KeyManagementException e) {
+            e.printStackTrace();
+        } catch (UnrecoverableKeyException e) {
+            e.printStackTrace();
+        }
+
+
         parser = new XMLParser();
         gson = new Gson();
         client.setCookieStore(new PersistentCookieStore(MyApplication.getContext()));
+    }
+
+    public HttpClient getHttpClient() {
+        return client.getHttpClient();
     }
 
     public interface OnResultListener<T> {

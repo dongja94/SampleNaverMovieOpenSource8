@@ -30,4 +30,5 @@ dependencies {
     compile project(':androidAsyncHttp')
     compile files('libs/simplexmlparser_0.1.2.jar')
     compile 'com.google.code.gson:gson:2.2.4'
+    compile project(':imageloader')
 }
