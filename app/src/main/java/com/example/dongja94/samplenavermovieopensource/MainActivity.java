@@ -3,6 +3,7 @@ package com.example.dongja94.samplenavermovieopensource;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
@@ -11,6 +12,7 @@ import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AbsListView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
@@ -24,11 +26,17 @@ public class MainActivity extends AppCompatActivity {
     EditText keywordView;
     ListView listView;
     PullToRefreshListView refreshView;
+    SwipeRefreshLayout refreshLayout;
     MovieAdapter mAdapter;
     ArrayAdapter<Song> mListAdapter;
     private static final boolean isNaverMovie = true;
+    private static final boolean isRefreshLibrary = false;
 
     boolean isUpdate = false;
+
+    boolean isLastItem = false;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,44 +55,53 @@ public class MainActivity extends AppCompatActivity {
         });
 
         keywordView = (EditText) findViewById(R.id.edit_keyword);
-        refreshView = (PullToRefreshListView)findViewById(R.id.listView);
-        refreshView.setOnRefreshListener(new PullToRefreshBase.OnRefreshListener<ListView>() {
-            @Override
-            public void onRefresh(PullToRefreshBase<ListView> refreshView) {
-                String keyword = mAdapter.getKeyword();
-                searchMovie(keyword);
-            }
-        });
-
-        refreshView.setOnLastItemVisibleListener(new PullToRefreshBase.OnLastItemVisibleListener() {
-            @Override
-            public void onLastItemVisible() {
-                if (!isUpdate) {
+        if (isRefreshLibrary) {
+//            refreshView = (PullToRefreshListView) findViewById(R.id.listView);
+            refreshView.setOnRefreshListener(new PullToRefreshBase.OnRefreshListener<ListView>() {
+                @Override
+                public void onRefresh(PullToRefreshBase<ListView> refreshView) {
                     String keyword = mAdapter.getKeyword();
-                    int startIndex = mAdapter.getStartIndex();
-                    if (!TextUtils.isEmpty(keyword) && startIndex != -1) {
-                        isUpdate = true;
-                        NetworkManager.getInstance().getNetworkMelon(MainActivity.this, keyword, startIndex, 10, new NetworkManager.OnResultListener<NaverMovies>() {
-                            @Override
-                            public void onSuccess(NaverMovies result) {
-                                for (MovieItem item : result.items) {
-                                    mAdapter.add(item);
-                                }
-                                isUpdate = false;
-                            }
+                    searchMovie(keyword);
+                }
+            });
 
-                            @Override
-                            public void onFail(int code) {
-                                isUpdate = false;
-                            }
-                        });
+            refreshView.setOnLastItemVisibleListener(new PullToRefreshBase.OnLastItemVisibleListener() {
+                @Override
+                public void onLastItemVisible() {
+                    getMoreItem();
+                }
+            });
+
+            listView = refreshView.getRefreshableView();
+        } else {
+            refreshLayout = (SwipeRefreshLayout)findViewById(R.id.refresh);
+            refreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+                @Override
+                public void onRefresh() {
+                    String keyword = mAdapter.getKeyword();
+                    searchMovie(keyword);
+                }
+            });
+            listView = (ListView)findViewById(R.id.listView);
+
+            listView.setOnScrollListener(new AbsListView.OnScrollListener() {
+                @Override
+                public void onScrollStateChanged(AbsListView view, int scrollState) {
+                    if (isLastItem && scrollState == AbsListView.OnScrollListener.SCROLL_STATE_IDLE) {
+                        getMoreItem();
                     }
                 }
-            }
-        });
 
-        listView = refreshView.getRefreshableView();
-
+                @Override
+                public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+                    if (totalItemCount > 0 && (firstVisibleItem + visibleItemCount >= totalItemCount - 1)) {
+                        isLastItem = true;
+                    } else {
+                        isLastItem = false;
+                    }
+                }
+            });
+        }
         if (isNaverMovie) {
             mAdapter = new MovieAdapter();
             listView.setAdapter(mAdapter);
@@ -125,6 +142,29 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private void getMoreItem() {
+        if (!isUpdate) {
+            String keyword = mAdapter.getKeyword();
+            int startIndex = mAdapter.getStartIndex();
+            if (!TextUtils.isEmpty(keyword) && startIndex != -1) {
+                isUpdate = true;
+                NetworkManager.getInstance().getNetworkMelon(MainActivity.this, keyword, startIndex, 10, new NetworkManager.OnResultListener<NaverMovies>() {
+                    @Override
+                    public void onSuccess(NaverMovies result) {
+                        for (MovieItem item : result.items) {
+                            mAdapter.add(item);
+                        }
+                        isUpdate = false;
+                    }
+
+                    @Override
+                    public void onFail(int code) {
+                        isUpdate = false;
+                    }
+                });
+            }
+        }
+    }
     private void searchMovie(final String keyword) {
         if (!TextUtils.isEmpty(keyword)) {
             NetworkManager.getInstance().getNetworkMelon(this, keyword, 1, 10, new NetworkManager.OnResultListener<NaverMovies>() {
@@ -136,7 +176,16 @@ public class MainActivity extends AppCompatActivity {
                     for (MovieItem item : result.items) {
                         mAdapter.add(item);
                     }
-                    refreshView.onRefreshComplete();
+                    if (isRefreshLibrary) {
+                        refreshView.onRefreshComplete();
+                    } else {
+                        refreshLayout.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                refreshLayout.setRefreshing(false);
+                            }
+                        }, 2000);
+                    }
                 }
 
                 @Override
@@ -146,6 +195,7 @@ public class MainActivity extends AppCompatActivity {
             });
         } else {
             mAdapter.clear();
+            mAdapter.setKeyword(keyword);
         }
     }
 
